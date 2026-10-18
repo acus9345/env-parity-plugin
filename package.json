@@ -1,0 +1,108 @@
+{
+  "name": "env-parity-plugin",
+  "version": "0.1.0",
+  "description": "Fail your Webpack, Rspack, Rollup, Rolldown, Astro or Next.js build when a variable from .env.example is missing or empty. The bundler-agnostic sibling of vite-plugin-env-parity. Zero dependencies.",
+  "keywords": [
+    "env",
+    "dotenv",
+    ".env",
+    ".env.example",
+    "environment-variables",
+    "validation",
+    "webpack",
+    "webpack-plugin",
+    "rspack",
+    "rollup",
+    "rollup-plugin",
+    "rolldown",
+    "astro",
+    "astro-integration",
+    "nextjs",
+    "next"
+  ],
+  "homepage": "https://github.com/acus9345/env-parity-plugin#readme",
+  "bugs": {
+    "url": "https://github.com/acus9345/env-parity-plugin/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/acus9345/env-parity-plugin.git"
+  },
+  "license": "MIT",
+  "author": "acus9345 <acus9345@gmail.com>",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./webpack": {
+      "types": "./dist/webpack.d.ts",
+      "default": "./dist/webpack.js"
+    },
+    "./rollup": {
+      "types": "./dist/rollup.d.ts",
+      "default": "./dist/rollup.js"
+    },
+    "./astro": {
+      "types": "./dist/astro.d.ts",
+      "default": "./dist/astro.js"
+    },
+    "./next": {
+      "types": "./dist/next.d.ts",
+      "default": "./dist/next.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "peerDependencies": {
+    "webpack": "^5.0.0",
+    "@rspack/core": ">=1.0.0",
+    "rollup": "^3.0.0 || ^4.0.0",
+    "astro": ">=4.0.0",
+    "next": ">=13.0.0"
+  },
+  "peerDependenciesMeta": {
+    "webpack": {
+      "optional": true
+    },
+    "@rspack/core": {
+      "optional": true
+    },
+    "rollup": {
+      "optional": true
+    },
+    "astro": {
+      "optional": true
+    },
+    "next": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "npm run clean && tsc -p tsconfig.build.json",
+    "prelint": "npm run build",
+    "lint": "tsc -p tsconfig.json",
+    "pretest": "npm run build",
+    "test": "node --test \"test/*.test.ts\"",
+    "prepack": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "typescript": "^7.0.2",
+    "webpack": "^5.112.0",
+    "rollup": "^4.64.9"
+  }
+}
