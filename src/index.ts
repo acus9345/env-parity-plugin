@@ -19,10 +19,12 @@ import { checkEnvParity, defaultEnvFiles, formatProblems, type CheckResult } fro
 import { expandFiles, resolveOptions, type EnvParityOptions } from "./core/options.js";
 
 export { checkEnvParity, defaultEnvFiles, formatProblems };
-export type { CheckInput, CheckResult, OptionHint } from "./core/check.js";
+export type { CheckInput, CheckResult, CodeUse, OptionHint } from "./core/check.js";
 export { EnvParityError } from "./core/errors.js";
 export type { EnvParityErrorCode } from "./core/errors.js";
-export type { EnvParityOptions } from "./core/options.js";
+export type { EnvParityOptions, ScanOptions } from "./core/options.js";
+export { BUILT_IN_VARIABLES, findEnvUses } from "./core/scan.js";
+export type { EnvUse } from "./core/scan.js";
 export { parseEnv, parseEnvDetailed } from "./core/parse.js";
 export type { EnvMap, ParseIssue, ParseResult } from "./core/parse.js";
 
@@ -32,6 +34,8 @@ export interface CheckEnvOptions extends Omit<EnvParityOptions, "failOn"> {
   root?: string;
   /** @default process.env */
   env?: Readonly<Record<string, string | undefined>>;
+  /** With `scan`, also check framework rules: `"next"` reports server-only variables read in `"use client"` files. */
+  framework?: "next";
 }
 
 /**
@@ -40,7 +44,7 @@ export interface CheckEnvOptions extends Omit<EnvParityOptions, "failOn"> {
  * missing or an option is invalid.
  */
 export function checkEnv(options: CheckEnvOptions = {}): CheckResult {
-  const { root, env, ...rest } = options;
+  const { root, env, framework, ...rest } = options;
   const opts = resolveOptions(rest, "env-parity-plugin", "checkEnv");
   const mode = opts.mode ?? process.env.NODE_ENV ?? "development";
   return checkEnvParity({
@@ -52,5 +56,7 @@ export function checkEnv(options: CheckEnvOptions = {}): CheckResult {
     reportExtra: opts.reportExtra,
     ignore: opts.ignore,
     processEnv: env ?? process.env,
+    scan: opts.scan,
+    framework,
   });
 }

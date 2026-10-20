@@ -66,6 +66,7 @@ export function withEnvParity<C extends object>(
         mode,
         isBuild: known.isBuild,
         envFiles: nextEnvFiles(mode),
+        framework: "next",
         hint: (option) => `withEnvParity(nextConfig, { ${option} })`,
         warn: (message) => console.warn(`⚠ ${message}`),
       });

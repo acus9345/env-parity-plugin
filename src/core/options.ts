@@ -31,6 +31,35 @@ export interface EnvParityOptions {
   envFiles?: readonly string[];
   /** Mode used for `.env.{mode}` files. @default worked out from the tool (production for builds, development for dev servers) */
   mode?: string;
+  /**
+   * Also scan your source code for `process.env.X` and `import.meta.env.X`.
+   * A variable the code reads but the example doesn't list fails like a missing
+   * one, and so does a server-only variable read in a Next.js `"use client"`
+   * file. `true` scans the whole project (minus node_modules and build output).
+   * @default false
+   */
+  scan?: boolean | ScanOptions;
+}
+
+/** Fine-tuning for {@link EnvParityOptions.scan}. */
+export interface ScanOptions {
+  /** Files or folders to scan, relative to the project root. @default ["."] */
+  paths?: readonly string[];
+  /** Folder or file names (or root-relative paths) to skip, on top of node_modules, dist, .next and other build output. @default [] */
+  exclude?: readonly string[];
+  /**
+   * Warn about variables in the example that no source file reads. Off by
+   * default because libraries often read variables themselves (like Prisma's
+   * `DATABASE_URL`). @default false
+   */
+  unused?: boolean;
+}
+
+/** Scan settings with defaults filled in. */
+export interface ResolvedScan {
+  paths: string[];
+  exclude: string[];
+  unused: boolean;
 }
 
 export interface ResolvedOptions {
@@ -42,9 +71,11 @@ export interface ResolvedOptions {
   envDir: string | false | undefined;
   envFiles: string[] | undefined;
   mode: string | undefined;
+  scan: ResolvedScan | undefined;
 }
 
-const KNOWN = ["example", "failOn", "allowEmpty", "reportExtra", "ignore", "envDir", "envFiles", "mode"];
+const KNOWN = ["example", "failOn", "allowEmpty", "reportExtra", "ignore", "envDir", "envFiles", "mode", "scan"];
+const SCAN_KNOWN = ["paths", "exclude", "unused"];
 
 /** Check options and fill in defaults. Throws {@link EnvParityError} with a fix for anything wrong. */
 export function resolveOptions(options: unknown, name: string, call: string): ResolvedOptions {
@@ -82,6 +113,29 @@ export function resolveOptions(options: unknown, name: string, call: string): Re
   if (o.mode !== undefined && (typeof o.mode !== "string" || o.mode.trim() === "")) {
     throw bad(`"mode" must be a string such as "production", but got ${kind(o.mode)}.`);
   }
+  let scan: ResolvedScan | undefined;
+  if (o.scan === true) scan = { paths: ["."], exclude: [], unused: false };
+  else if (o.scan !== undefined && o.scan !== false) {
+    if (o.scan === null || typeof o.scan !== "object" || Array.isArray(o.scan)) {
+      throw bad(`"scan" must be true, false or an object like { paths: ["src"] }, but got ${kind(o.scan)}.`);
+    }
+    const s = o.scan as Record<string, unknown>;
+    for (const key of Object.keys(s)) {
+      if (!SCAN_KNOWN.includes(key)) throw bad(`Unknown scan option "${key}". Valid scan options are: ${SCAN_KNOWN.join(", ")}.`);
+    }
+    for (const list of ["paths", "exclude"] as const) {
+      const v = s[list];
+      if (v !== undefined && (!Array.isArray(v) || v.some((p) => typeof p !== "string" || p === ""))) {
+        throw bad(`"scan.${list}" must be an array of paths, e.g. ["src"], but got ${kind(v)}.`);
+      }
+    }
+    if (s.unused !== undefined && typeof s.unused !== "boolean") throw bad(`"scan.unused" must be true or false, but got ${kind(s.unused)}.`);
+    scan = {
+      paths: s.paths === undefined ? ["."] : [...(s.paths as string[])],
+      exclude: s.exclude === undefined ? [] : [...(s.exclude as string[])],
+      unused: (s.unused as boolean | undefined) ?? false,
+    };
+  }
   return {
     example: o.example as string | undefined,
     failOn,
@@ -91,6 +145,7 @@ export function resolveOptions(options: unknown, name: string, call: string): Re
     envDir: o.envDir as string | false | undefined,
     envFiles: o.envFiles === undefined ? undefined : [...(o.envFiles as string[])],
     mode: o.mode as string | undefined,
+    scan,
   };
 }
 

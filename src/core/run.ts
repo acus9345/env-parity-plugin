@@ -14,6 +14,8 @@ export interface RunContext {
   envFiles?: readonly string[];
   /** Where this tool keeps env files, when it has its own setting (like Vite's `envDir`). */
   envDir?: string | false;
+  /** Framework-specific checks to turn on when scanning. */
+  framework?: "next";
   hint: OptionHint;
   warn: (message: string) => void;
 }
@@ -38,6 +40,8 @@ export function runCheck(opts: ResolvedOptions, ctx: RunContext, processEnv: Rea
     reportExtra: opts.reportExtra,
     ignore: opts.ignore,
     processEnv,
+    scan: opts.scan,
+    framework: ctx.framework,
   };
 
   let result: CheckResult;

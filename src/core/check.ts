@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
-import { compareEnv } from "./compare.js";
+import { compareEnv, makeIgnoreMatcher } from "./compare.js";
 import { EnvParityError } from "./errors.js";
+import type { ResolvedScan } from "./options.js";
 import { parseEnvDetailed, type EnvMap } from "./parse.js";
+import { BUILT_IN_VARIABLES, DEFAULT_SCAN_EXCLUDE, scanSource } from "./scan.js";
 
 /** Fully-resolved inputs for {@link checkEnvParity}. */
 export interface CheckInput {
@@ -19,6 +21,17 @@ export interface CheckInput {
   ignore: readonly string[];
   /** Usually `process.env`. Wins over env files. */
   processEnv: Readonly<Record<string, string | undefined>>;
+  /** Scan source files for env reads. */
+  scan?: ResolvedScan | undefined;
+  /** Turns on framework-specific checks: `"next"` checks variables read in `"use client"` files. */
+  framework?: "next" | undefined;
+}
+
+/** A variable read in source code, and where. */
+export interface CodeUse {
+  key: string;
+  /** `file:line` locations, relative to the root. */
+  at: string[];
 }
 
 /** Outcome of a check. */
@@ -36,7 +49,13 @@ export interface CheckResult {
    * byte-order mark), as `"<file> (<encoding>)"`. Values from UTF-16 files are ignored.
    */
   badEncoding: string[];
-  /** Lines that could not be parsed, with file and line number. */
+  /** Variables the source code reads that the example doesn't list (only with `scan`). */
+  undeclared: CodeUse[];
+  /** Server-only variables read in Next.js `"use client"` files, which are `undefined` in the browser (only with `scan`). */
+  clientOnly: CodeUse[];
+  /** Variables in the example that no source file reads (only with `scan: { unused: true }`). */
+  unused: string[];
+  /** Lines that could not be parsed, and other things worth a look, with file and line number. */
   warnings: string[];
   /** Absolute path of the example file. */
   examplePath: string;
@@ -95,12 +114,55 @@ export function checkEnvParity(input: CheckInput): CheckResult {
     example,
     input,
   );
+  const undeclared: CodeUse[] = [];
+  const clientOnly: CodeUse[] = [];
+  const unused: string[] = [];
+  if (input.scan) {
+    const isIgnored = makeIgnoreMatcher(input.ignore);
+    const isBuiltIn = makeIgnoreMatcher(BUILT_IN_VARIABLES);
+    const scanned = scanSource({
+      root: input.root,
+      paths: input.scan.paths,
+      exclude: [...DEFAULT_SCAN_EXCLUDE, ...input.scan.exclude],
+    });
+    const group = (uses: typeof scanned.uses) => {
+      const byKey = new Map<string, string[]>();
+      for (const u of uses) byKey.set(u.key, [...(byKey.get(u.key) ?? []), u.at]);
+      return [...byKey].map(([key, at]) => ({ key, at })).sort((a, b) => a.key.localeCompare(b.key));
+    };
+    undeclared.push(...group(scanned.uses.filter((u) => !Object.hasOwn(example, u.key) && !isIgnored(u.key) && !isBuiltIn(u.key))));
+    if (input.framework === "next") {
+      clientOnly.push(...group(scanned.uses.filter((u) => u.client && !u.key.startsWith("NEXT_PUBLIC_") && u.key !== "NODE_ENV" && !isIgnored(u.key))));
+      for (const at of scanned.dynamicClient) {
+        warnings.push(
+          `${at}: process.env is read dynamically in a "use client" file. Next.js only inlines process.env.NEXT_PUBLIC_NAME written out in full, so this is undefined in the browser.`,
+        );
+      }
+    }
+    if (input.scan.unused) {
+      const read = new Set(scanned.uses.map((u) => u.key));
+      unused.push(...Object.keys(example).filter((k) => !read.has(k) && !isIgnored(k)));
+      if (unused.length > 0) {
+        warnings.push(`${display(examplePath, input.root)} lists ${unused.length === 1 ? "a variable" : "variables"} no source file reads: ${unused.join(", ")}`);
+      }
+    }
+  }
+
   return {
-    ok: missing.length === 0 && empty.length === 0 && extra.length === 0 && badEncoding.length === 0,
+    ok:
+      missing.length === 0 &&
+      empty.length === 0 &&
+      extra.length === 0 &&
+      badEncoding.length === 0 &&
+      undeclared.length === 0 &&
+      clientOnly.length === 0,
     missing,
     empty,
     extra,
     badEncoding,
+    undeclared,
+    clientOnly,
+    unused,
     warnings,
     examplePath,
     envFileNames: input.envDir === false ? [] : [...input.envFiles],
@@ -123,12 +185,19 @@ export function formatProblems(
       ? `${unset} ${unset === 1 ? "variable" : "variables"} from ${example} ${unset === 1 ? "is" : "are"} not set (mode "${context.mode}").`
       : result.badEncoding.length > 0
         ? `Some env files are saved in an encoding that can't be read correctly (mode "${context.mode}").`
-        : `Env files define variables that ${example} does not list (mode "${context.mode}").`,
+        : result.undeclared.length > 0
+          ? `Your code reads ${result.undeclared.length === 1 ? "a variable" : "variables"} that ${example} does not list (mode "${context.mode}").`
+          : result.clientOnly.length > 0
+            ? `Client components read server-only variables, which are undefined in the browser (mode "${context.mode}").`
+            : `Env files define variables that ${example} does not list (mode "${context.mode}").`,
   );
+  const where = (u: CodeUse) => `${u.key} (${u.at.slice(0, 3).join(", ")}${u.at.length > 3 ? `, +${u.at.length - 3} more` : ""})`;
   if (result.missing.length > 0) lines.push(`  Missing:        ${result.missing.join(", ")}`);
   if (result.empty.length > 0) lines.push(`  Empty:          ${result.empty.join(", ")}`);
   if (result.extra.length > 0) lines.push(`  Undocumented:   ${result.extra.join(", ")}`);
   if (result.badEncoding.length > 0) lines.push(`  Wrong encoding: ${result.badEncoding.join(", ")}`);
+  if (result.undeclared.length > 0) lines.push(`  Undeclared:     ${result.undeclared.map(where).join(", ")}`);
+  if (result.clientOnly.length > 0) lines.push(`  In client code: ${result.clientOnly.map(where).join(", ")}`);
   lines.push("How to fix:");
   if (result.badEncoding.length > 0) {
     lines.push(
@@ -149,6 +218,14 @@ export function formatProblems(
   }
   if (result.extra.length > 0) {
     lines.push(`  - Add the undocumented variables to ${example}, or remove them from your env files.`);
+  }
+  if (result.undeclared.length > 0) {
+    lines.push(`  - Add the undeclared variables to ${example} (KEY= with no value is fine), so everyone knows the app needs them.`);
+  }
+  if (result.clientOnly.length > 0) {
+    lines.push(
+      `  - Only variables starting with NEXT_PUBLIC_ reach the browser. Rename the variable if it is safe to make public, or read it in a Server Component, Route Handler or Server Action and pass the value down.`,
+    );
   }
   lines.push(`  - To skip a variable on purpose, use ${context.hint('ignore: ["NAME"]')}.`);
   return lines.join("\n");

@@ -1,7 +1,7 @@
 {
   "name": "env-parity-plugin",
-  "version": "0.1.0",
-  "description": "Fail your Webpack, Rspack, Rollup, Rolldown, Astro or Next.js build when a variable from .env.example is missing or empty. The bundler-agnostic sibling of vite-plugin-env-parity. Zero dependencies.",
+  "version": "0.2.0",
+  "description": "Fail your Webpack, Rspack, Rollup, Rolldown, Astro or Next.js build when a variable from .env.example is missing or empty, or when your code reads one the example doesn't list. Catches server secrets in Next.js client components. Zero dependencies.",
   "keywords": [
     "env",
     "dotenv",
@@ -18,7 +18,10 @@
     "astro",
     "astro-integration",
     "nextjs",
-    "next"
+    "next",
+    "process.env",
+    "client-components",
+    "lint"
   ],
   "homepage": "https://github.com/acus9345/env-parity-plugin#readme",
   "bugs": {
