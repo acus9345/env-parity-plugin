@@ -2,7 +2,9 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
-## [0.3.0] - 2026-10-22
+## [0.3.1] - 2026-10-22
+
+0.3.0 was never published: npm held it as a staged version that could not be released, so the same changes ship as 0.3.1.
 
 ### Changed
 
@@ -34,6 +36,6 @@ All notable changes to this project are documented here. This project follows [S
 - Options `example`, `failOn`, `allowEmpty`, `reportExtra`, `ignore`, `envDir`, `envFiles` and `mode`, validated with helpful errors.
 - Detection of UTF-16 and BOM-encoded env files.
 
-[0.3.0]: https://github.com/acus9345/env-parity-plugin/releases/tag/v0.3.0
+[0.3.1]: https://github.com/acus9345/env-parity-plugin/releases/tag/v0.3.1
 [0.2.0]: https://github.com/acus9345/env-parity-plugin/releases/tag/v0.2.0
 [0.1.0]: https://github.com/acus9345/env-parity-plugin/releases/tag/v0.1.0

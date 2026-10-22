@@ -1,6 +1,6 @@
 {
   "name": "env-parity-plugin",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Fail your Webpack, Rspack, Rollup, Rolldown, Astro or Next.js build or dev server when a variable from .env.example is missing or empty, or when your code reads one the example doesn't list. Catches server secrets in Next.js client components. Built on @acus9345/env-parity.",
   "keywords": [
     "env",
