@@ -7,11 +7,10 @@
  *
  * export default { plugins: [new EnvParityPlugin()] };
  */
-import { resolveOptions, type EnvParityOptions, type ResolvedOptions } from "./core/options.js";
-import { runCheck } from "./core/run.js";
+import { resolveOptions, runCheck, type EnvParityOptions, type ResolvedOptions } from "@acus9345/env-parity";
 
-export type { EnvParityOptions } from "./core/options.js";
-export { EnvParityError } from "./core/errors.js";
+export type { EnvParityOptions } from "@acus9345/env-parity";
+export { EnvParityError } from "@acus9345/env-parity";
 
 const NAME = "env-parity-plugin/webpack";
 
@@ -29,7 +28,8 @@ export interface CompilerLike {
 
 /**
  * Checks your env against `.env.example` before each build. A mismatch fails
- * `webpack` / `rspack build` and is a warning in watch mode and dev servers.
+ * `webpack` / `rspack build` and the first compile of watch mode and dev
+ * servers; later rebuilds only warn.
  *
  * Reads `.env`, `.env.local`, `.env.[mode]` and `.env.[mode].local` from the
  * compiler's `context`, plus environment variables. The mode is Webpack's
@@ -39,20 +39,23 @@ export interface CompilerLike {
 export class EnvParityPlugin {
   readonly #options: ResolvedOptions;
   #lastWarning = "";
+  #watchStarted = false;
 
   constructor(options: EnvParityOptions = {}) {
-    this.#options = resolveOptions(options, NAME, "new EnvParityPlugin");
+    this.#options = resolveOptions(options, { name: NAME, call: "new EnvParityPlugin", docs: "https://github.com/acus9345/env-parity-plugin#options" });
   }
 
   apply(compiler: CompilerLike): void {
     const check = async (watching: boolean): Promise<void> => {
       const mode = compiler.options.mode && compiler.options.mode !== "none" ? compiler.options.mode : "production";
       const logger = compiler.getInfrastructureLogger?.(NAME);
+      const run = !watching ? "build" : this.#watchStarted ? "rebuild" : "dev";
+      if (watching) this.#watchStarted = true;
       const { error } = runCheck(this.#options, {
         name: NAME,
         root: compiler.context,
         mode,
-        isBuild: !watching,
+        run,
         hint: (option) => `new EnvParityPlugin({ ${option} })`,
         warn: (message) => {
           // Watch mode re-checks on every rebuild; only repeat a warning when it changes.

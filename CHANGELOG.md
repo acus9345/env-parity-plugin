@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-10-22
+
+### Changed
+
+- **The default `failOn` is now `"start"`:** a mismatch fails dev-server starts as well as production builds (`next dev`, `astro dev`, the first compile of `webpack --watch` / `webpack serve`, the first build of `rollup -w`). Watch-mode rebuilds, `next start`, `astro preview` and tests still only warn. To keep the 0.2 behaviour, pass `failOn: "build"`. When a dev start fails, the message says so.
+- The checker now lives in [@acus9345/env-parity](https://www.npmjs.com/package/@acus9345/env-parity), the core shared with vite-plugin-env-parity. This package depends on it and re-exports `checkEnv`, `checkEnvParity`, `formatProblems`, `parseEnv` and the rest from its root entry, so imports keep working.
+
+### Added
+
+- `failOn: "start"`, and the `FailOn` and `CheckEnvOptions` types.
+
 ## [0.2.0] - 2026-10-20
 
 ### Added
@@ -23,5 +34,6 @@ All notable changes to this project are documented here. This project follows [S
 - Options `example`, `failOn`, `allowEmpty`, `reportExtra`, `ignore`, `envDir`, `envFiles` and `mode`, validated with helpful errors.
 - Detection of UTF-16 and BOM-encoded env files.
 
+[0.3.0]: https://github.com/acus9345/env-parity-plugin/releases/tag/v0.3.0
 [0.2.0]: https://github.com/acus9345/env-parity-plugin/releases/tag/v0.2.0
 [0.1.0]: https://github.com/acus9345/env-parity-plugin/releases/tag/v0.1.0

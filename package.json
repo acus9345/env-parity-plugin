@@ -1,7 +1,7 @@
 {
   "name": "env-parity-plugin",
-  "version": "0.2.0",
-  "description": "Fail your Webpack, Rspack, Rollup, Rolldown, Astro or Next.js build when a variable from .env.example is missing or empty, or when your code reads one the example doesn't list. Catches server secrets in Next.js client components. Zero dependencies.",
+  "version": "0.3.0",
+  "description": "Fail your Webpack, Rspack, Rollup, Rolldown, Astro or Next.js build or dev server when a variable from .env.example is missing or empty, or when your code reads one the example doesn't list. Catches server secrets in Next.js client components. Built on @acus9345/env-parity.",
   "keywords": [
     "env",
     "dotenv",
@@ -69,12 +69,15 @@
   "engines": {
     "node": ">=20"
   },
+  "dependencies": {
+    "@acus9345/env-parity": "^0.1.1"
+  },
   "peerDependencies": {
-    "webpack": "^5.0.0",
     "@rspack/core": ">=1.0.0",
-    "rollup": "^3.0.0 || ^4.0.0",
     "astro": ">=4.0.0",
-    "next": ">=13.0.0"
+    "next": ">=13.0.0",
+    "rollup": "^3.0.0 || ^4.0.0",
+    "webpack": "^5.0.0"
   },
   "peerDependenciesMeta": {
     "webpack": {
@@ -104,8 +107,8 @@
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
+    "rollup": "^4.64.9",
     "typescript": "^7.0.2",
-    "webpack": "^5.112.0",
-    "rollup": "^4.64.9"
+    "webpack": "^5.112.0"
   }
 }

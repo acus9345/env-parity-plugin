@@ -97,6 +97,44 @@ describe("webpack", () => {
   });
 });
 
+describe("watch mode", () => {
+  it("webpack fails the first watch compile and only warns on rebuilds", async () => {
+    const root = project({ ".env.example": "ENV_PARITY_TEST_SECRET=\n" });
+    const taps: Record<string, () => Promise<void>> = {};
+    const hook = (name: string) => ({
+      tapPromise: (_: string, fn: (compiler: unknown) => Promise<void>) => void (taps[name] = () => fn(undefined)),
+    });
+    const warnings: unknown[] = [];
+    new EnvParityPlugin().apply({
+      context: root,
+      options: { mode: "development" },
+      hooks: { beforeRun: hook("beforeRun"), watchRun: hook("watchRun") },
+      getInfrastructureLogger: () => ({ warn: (m: unknown) => warnings.push(m) }),
+    });
+    await assert.rejects(taps.watchRun!(), /ENV_PARITY_TEST_SECRET/);
+    await taps.watchRun!();
+    await taps.watchRun!();
+    assert.equal(warnings.length, 1);
+  });
+
+  it("rollup fails the first watch build and only warns on rebuilds", () => {
+    const root = project({ ".env.example": "ENV_PARITY_TEST_SECRET=\n" });
+    const plugin = rollupEnvParity({ root });
+    const warnings: string[] = [];
+    const ctx = {
+      meta: { watchMode: true },
+      warn: (m: string) => void warnings.push(m),
+      error: (e: Error | string): never => {
+        throw e;
+      },
+    };
+    assert.throws(() => plugin.buildStart.call(ctx), /ENV_PARITY_TEST_SECRET/);
+    plugin.buildStart.call(ctx);
+    plugin.buildStart.call(ctx);
+    assert.equal(warnings.length, 1);
+  });
+});
+
 describe("rollup", () => {
   it("fails the build when a variable is missing", async () => {
     const root = project({ ".env.example": "ENV_PARITY_TEST_SECRET=\n" });
@@ -149,30 +187,33 @@ describe("astro", () => {
     assert.throws(() => plugin.configResolved({ root, mode: "production", envDir: root }), /\[env-parity-plugin\/astro\] 1 variable/);
   });
 
-  it("warns once in astro dev, reading Vite's envDir and mode", () => {
+  it("fails astro dev, warns once in astro preview, and reads Vite's envDir and mode", () => {
     const root = project({ ".env.example": "PUBLIC_API=\n", ".env.staging": "PUBLIC_API=x\n" });
-    const { plugin, logged } = setup("dev");
-    plugin.configResolved({ root, mode: "development", envDir: root });
-    plugin.configResolved({ root, mode: "development", envDir: root });
+    assert.throws(() => setup("dev").plugin.configResolved({ root, mode: "development", envDir: root }), /failOn: "build"/);
+    const { plugin, logged } = setup("preview");
+    plugin.configResolved({ root, mode: "production", envDir: root });
+    plugin.configResolved({ root, mode: "production", envDir: root });
     assert.equal(logged.length, 1);
+    setup("dev", { failOn: "build" }).plugin.configResolved({ root, mode: "development", envDir: root });
     const staging = setup("build").plugin;
     staging.configResolved({ root, mode: "staging", envDir: root });
   });
 });
 
 describe("next", () => {
-  it("fails next build, warns in next dev, and returns the wrapped config", async () => {
+  it("fails next build and next dev, warns in next start, and returns the wrapped config", async () => {
     const root = project({ ".env.example": "DATABASE_URL=\n" });
     const config = withEnvParity({ reactStrictMode: true }, { root });
     await assert.rejects(config("phase-production-build", { defaultConfig: {} as never }), /\[env-parity-plugin\/next\] 1 variable/);
+    await assert.rejects(config("phase-development-server", { defaultConfig: {} as never }), /withEnvParity\(nextConfig, \{ failOn: "build" \}\)/);
     const warn = console.warn;
     const logged: string[] = [];
     console.warn = (m: string) => logged.push(m);
     try {
-      assert.deepEqual(await config("phase-development-server", { defaultConfig: {} as never }), { reactStrictMode: true });
+      assert.deepEqual(await config("phase-production-server", { defaultConfig: {} as never }), { reactStrictMode: true });
       assert.match(logged[0]!, /DATABASE_URL/);
       // Next loads the config again in workers; the check runs once per phase.
-      await config("phase-development-server", { defaultConfig: {} as never });
+      await config("phase-production-server", { defaultConfig: {} as never });
       assert.equal(logged.length, 1);
     } finally {
       console.warn = warn;

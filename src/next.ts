@@ -7,11 +7,10 @@
  *
  * export default withEnvParity({ reactStrictMode: true });
  */
-import { resolveOptions, type EnvParityOptions } from "./core/options.js";
-import { runCheck } from "./core/run.js";
+import { resolveOptions, runCheck, type EnvParityOptions, type RunKind } from "@acus9345/env-parity";
 
-export type { EnvParityOptions } from "./core/options.js";
-export { EnvParityError } from "./core/errors.js";
+export type { EnvParityOptions } from "@acus9345/env-parity";
+export { EnvParityError } from "@acus9345/env-parity";
 
 const NAME = "env-parity-plugin/next";
 
@@ -24,13 +23,16 @@ export interface NextEnvParityOptions extends EnvParityOptions {
 /** A Next.js config: an object, or a function of the phase that returns one. */
 export type NextConfigInput<C> = C | ((phase: string, context: { defaultConfig: C }) => C | Promise<C>);
 
-/** How each Next.js phase maps to a mode, and whether it counts as a build. */
-export const PHASES: Readonly<Record<string, { mode: string; isBuild: boolean } | undefined>> = {
-  "phase-development-server": { mode: "development", isBuild: false },
-  "phase-production-build": { mode: "production", isBuild: true },
-  "phase-export": { mode: "production", isBuild: true },
-  "phase-production-server": { mode: "production", isBuild: false },
-  "phase-test": { mode: "test", isBuild: false },
+/**
+ * How each Next.js phase maps to a mode and a kind of run. `next start` only
+ * warns: public variables were inlined by `next build`, which already checked them.
+ */
+export const PHASES: Readonly<Record<string, { mode: string; run: RunKind } | undefined>> = {
+  "phase-development-server": { mode: "development", run: "dev" },
+  "phase-production-build": { mode: "production", run: "build" },
+  "phase-export": { mode: "production", run: "build" },
+  "phase-production-server": { mode: "production", run: "other" },
+  "phase-test": { mode: "test", run: "other" },
 };
 
 /** Env files Next.js loads for a mode, lowest priority first. `.env.local` is skipped in tests, like Next does. */
@@ -40,8 +42,8 @@ export function nextEnvFiles(mode: string): string[] {
 
 /**
  * Wrap your Next.js config so the env is checked against `.env.example`
- * whenever Next loads it. A mismatch fails `next build` and is a warning in
- * `next dev` and `next start`.
+ * whenever Next loads it. A mismatch fails `next build` and `next dev`, and
+ * is a warning in `next start` and tests.
  *
  * Reads the files Next.js loads for the phase (`.env`, `.env.[mode]`,
  * `.env.local`, `.env.[mode].local`) plus environment variables. Works with
@@ -52,7 +54,7 @@ export function withEnvParity<C extends object>(
   options: NextEnvParityOptions = {},
 ): (phase: string, context: { defaultConfig: C }) => Promise<C> {
   const { root, ...rest } = options;
-  const opts = resolveOptions(rest, NAME, "withEnvParity");
+  const opts = resolveOptions(rest, { name: NAME, call: "withEnvParity", docs: "https://github.com/acus9345/env-parity-plugin#options" });
   return async (phase, context) => {
     const known = PHASES[phase];
     // Next.js loads the config again in worker processes; they inherit this marker, so the check runs once.
@@ -64,7 +66,7 @@ export function withEnvParity<C extends object>(
         name: NAME,
         root: root ?? process.cwd(),
         mode,
-        isBuild: known.isBuild,
+        run: known.run,
         envFiles: nextEnvFiles(mode),
         framework: "next",
         hint: (option) => `withEnvParity(nextConfig, { ${option} })`,

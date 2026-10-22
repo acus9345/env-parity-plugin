@@ -8,11 +8,10 @@
  *
  * export default defineConfig({ integrations: [envParity()] });
  */
-import { resolveOptions, type EnvParityOptions, type ResolvedOptions } from "./core/options.js";
-import { runCheck } from "./core/run.js";
+import { resolveOptions, runCheck, type EnvParityOptions, type ResolvedOptions } from "@acus9345/env-parity";
 
-export type { EnvParityOptions } from "./core/options.js";
-export { EnvParityError } from "./core/errors.js";
+export type { EnvParityOptions } from "@acus9345/env-parity";
+export { EnvParityError } from "@acus9345/env-parity";
 
 const NAME = "env-parity-plugin/astro";
 
@@ -43,14 +42,14 @@ export interface EnvParityAstroIntegration {
 
 /**
  * Checks your env against `.env.example` when Astro starts. A mismatch fails
- * `astro build` and is a warning in `astro dev`.
+ * `astro build` and `astro dev`, and is a warning in `astro preview`.
  *
  * Astro loads env files through Vite, so this reads the same files Vite does
  * (`.env`, `.env.local`, `.env.[mode]`, `.env.[mode].local` in Vite's
  * `envDir`), honours `--mode`, and adds environment variables on top.
  */
 export function envParity(options: EnvParityOptions = {}): EnvParityAstroIntegration {
-  const opts = resolveOptions(options, NAME, "envParity");
+  const opts = resolveOptions(options, { name: NAME, call: "envParity", docs: "https://github.com/acus9345/env-parity-plugin#options" });
   return {
     name: "env-parity-plugin",
     hooks: {
@@ -74,7 +73,7 @@ export function vitePlugin(opts: ResolvedOptions, command: string, logger?: Logg
         name: NAME,
         root: config.root,
         mode: config.mode,
-        isBuild: command === "build",
+        run: command === "build" ? "build" : command === "dev" ? "dev" : "other",
         envDir: config.envDir ?? config.root,
         hint: (option) => `envParity({ ${option} })`,
         warn: (message) => (logger ?? config.logger ?? console).warn(message),

@@ -1,16 +1,16 @@
 # env-parity-plugin
 
-Fail your Webpack, Rspack, Rollup, Rolldown, Astro or Next.js build when a variable listed in `.env.example` is missing or empty, so it doesn't silently become `undefined` in production. Zero dependencies.
+Fail your Webpack, Rspack, Rollup, Rolldown, Astro or Next.js build, or the dev-server start, when a variable listed in `.env.example` is missing or empty, so it doesn't silently become `undefined` in production.
 
 [![npm](https://img.shields.io/npm/v/env-parity-plugin)](https://www.npmjs.com/package/env-parity-plugin)
 [![CI](https://github.com/acus9345/env-parity-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/acus9345/env-parity-plugin/actions/workflows/ci.yml)
 [![license](https://img.shields.io/npm/l/env-parity-plugin)](LICENSE)
 
-The same check as [vite-plugin-env-parity](https://www.npmjs.com/package/vite-plugin-env-parity), for the other tools.
+The same check as [vite-plugin-env-parity](https://www.npmjs.com/package/vite-plugin-env-parity), for the other tools. Both run on one shared core, [@acus9345/env-parity](https://www.npmjs.com/package/@acus9345/env-parity), so every tool reports the same problems the same way.
 
 - **Zero config:** your existing `.env.example` is the schema.
 - **Reads what your tool reads:** the `.env` files each tool loads for the current mode, plus environment variables, so it works in CI.
-- **Friendly in dev:** production builds fail, dev servers and watch mode only warn.
+- **Fails early (new in 0.3):** production builds and dev-server starts fail. Watch-mode rebuilds, `next start` and `astro preview` only warn, so a running server never crashes. Prefer warnings in dev? Use `failOn: "build"`.
 - **Checks your code too (new in 0.2):** with `scan: true`, a `process.env.X` that `.env.example` doesn't list fails the build, and so does a server-only secret read in a Next.js `"use client"` component, where it would be `undefined`.
 - **Catches Windows encoding traps:** `.env` files saved as UTF-16 (what `>` does in Windows PowerShell) or with a BOM.
 - Works with Turbopack too, because the Next.js check runs when the config loads, not inside the bundler.
@@ -44,7 +44,7 @@ export default {
 };
 ```
 
-Reads `.env`, `.env.local`, `.env.[mode]` and `.env.[mode].local` from the compiler's `context`, where the mode is Webpack's `mode` (`production` when unset). `webpack` / `rspack build` fail on a mismatch; `--watch` and the dev server warn.
+Reads `.env`, `.env.local`, `.env.[mode]` and `.env.[mode].local` from the compiler's `context`, where the mode is Webpack's `mode` (`production` when unset). `webpack` / `rspack build` fail on a mismatch, and so does the first compile of `--watch` and the dev server; later rebuilds warn.
 
 ### Rollup or Rolldown
 
@@ -58,7 +58,7 @@ export default {
 };
 ```
 
-Same files as above, from the current directory (or `root`). The mode is `NODE_ENV`, or `production` for builds and `development` with `-w`.
+Same files as above, from the current directory (or `root`). The mode is `NODE_ENV`, or `production` for builds and `development` with `-w`. With `-w`, the first build fails and later rebuilds warn.
 
 ### Astro
 
@@ -72,7 +72,7 @@ export default defineConfig({
 });
 ```
 
-Astro loads env files through Vite, so the check reads the same files Vite does, honours `--mode` and Vite's `envDir`. `astro build` fails, `astro dev` warns.
+Astro loads env files through Vite, so the check reads the same files Vite does, honours `--mode` and Vite's `envDir`. `astro build` and `astro dev` fail, `astro preview` warns.
 
 ### Next.js
 
@@ -85,7 +85,7 @@ export default withEnvParity({
 });
 ```
 
-It also wraps config functions and other wrappers: `withEnvParity(withMDX(config))`. The check reads the files Next.js loads for the phase (`.env`, `.env.[mode]`, `.env.local`, `.env.[mode].local`; no `.env.local` in tests). `next build` fails, `next dev` and `next start` warn.
+It also wraps config functions and other wrappers: `withEnvParity(withMDX(config))`. The check reads the files Next.js loads for the phase (`.env`, `.env.[mode]`, `.env.local`, `.env.[mode].local`; no `.env.local` in tests). `next build` and `next dev` fail. `next start` and tests only warn, because `next build` already checked the variables it inlined.
 
 ## What a failure looks like
 
@@ -140,7 +140,7 @@ Every adapter takes the same options:
 ```js
 envParity({
   example: ".env.example",
-  failOn: "build",
+  failOn: "start",
   allowEmpty: false,
   reportExtra: false,
   ignore: [],
@@ -150,7 +150,7 @@ envParity({
 | Option | Default | What it does |
 | --- | --- | --- |
 | `example` | `.env.example` in `envDir` | File that lists the required variables. |
-| `failOn` | `"build"` | `"build"`: fail production builds, warn in dev and watch mode. `"always"`: fail every run. `"never"`: only warn. |
+| `failOn` | `"start"` | `"start"`: fail production builds and dev-server starts, warn on rebuilds, preview servers and tests. `"build"`: fail production builds only (the 0.2 default). `"always"`: fail every run, rebuilds included. `"never"`: only warn. |
 | `allowEmpty` | `false` | Accept variables that are set but empty (`KEY=`). |
 | `reportExtra` | `false` | Also report variables in your env files that the example doesn't list, so it stays up to date. |
 | `ignore` | `[]` | Variables to skip. `*` is a wildcard: `["SENTRY_*"]`. |
