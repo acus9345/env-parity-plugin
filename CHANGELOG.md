@@ -4,7 +4,7 @@ All notable changes to this project are documented here. This project follows [S
 
 ## [0.3.1] - 2026-10-22
 
-0.3.0 was never published: npm held it as a staged version that could not be released, so the same changes ship as 0.3.1.
+0.3.0 and 0.3.1 contain the same code. npm held the 0.3.0 publish for about ten minutes, so the changes below were released again as 0.3.1 before 0.3.0 appeared. Either version works; 0.3.1 is `latest`.
 
 ### Changed
 
