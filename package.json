@@ -107,8 +107,8 @@
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
-    "rollup": "^4.64.9",
+    "rollup": "^4.65.1",
     "typescript": "^7.0.2",
-    "webpack": "^5.112.0"
+    "webpack": "^5.112.2"
   }
 }
