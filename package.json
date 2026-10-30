@@ -106,8 +106,8 @@
     "prepack": "npm run build"
   },
   "devDependencies": {
-    "@types/node": "^26.6.5",
-    "rollup": "^4.65.1",
+    "@types/node": "^26.6.6",
+    "rollup": "^4.66.0",
     "typescript": "^7.0.2",
     "webpack": "^5.112.2"
   }
