@@ -10,6 +10,8 @@
  */
 import { resolveOptions, runCheck, type EnvParityOptions, type ResolvedOptions } from "@acus9345/env-parity";
 
+import { DOCS_URL } from "./shared.js";
+
 export type { EnvParityOptions } from "@acus9345/env-parity";
 export { EnvParityError } from "@acus9345/env-parity";
 
@@ -19,11 +21,17 @@ interface LoggerLike {
   warn(message: string): void;
 }
 
+/** The Vite plugin shape added by this integration. */
+export interface EnvParityVitePlugin {
+  name: string;
+  configResolved(config: ViteConfigLike): void;
+}
+
 /** The parts of Astro's `astro:config:setup` hook this integration uses. */
 export interface AstroSetupLike {
   command: string;
   logger?: LoggerLike;
-  updateConfig(config: { vite: { plugins: unknown[] } }): unknown;
+  updateConfig(config: { vite: { plugins: EnvParityVitePlugin[] } }): unknown;
 }
 
 /** The parts of Vite's resolved config the inner plugin reads. */
@@ -49,7 +57,7 @@ export interface EnvParityAstroIntegration {
  * `envDir`), honours `--mode`, and adds environment variables on top.
  */
 export function envParity(options: EnvParityOptions = {}): EnvParityAstroIntegration {
-  const opts = resolveOptions(options, { name: NAME, call: "envParity", docs: "https://github.com/acus9345/env-parity-plugin#options" });
+  const opts = resolveOptions(options, { name: NAME, call: "envParity", docs: DOCS_URL });
   return {
     name: "env-parity-plugin",
     hooks: {
@@ -61,7 +69,7 @@ export function envParity(options: EnvParityOptions = {}): EnvParityAstroIntegra
 }
 
 /** The Vite plugin the integration adds; exported for tests and custom setups. */
-export function vitePlugin(opts: ResolvedOptions, command: string, logger?: LoggerLike) {
+export function vitePlugin(opts: ResolvedOptions, command: string, logger?: LoggerLike): EnvParityVitePlugin {
   let checked = false;
   return {
     name: "env-parity-plugin:astro",

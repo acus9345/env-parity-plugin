@@ -6,10 +6,10 @@ import { after, describe, it } from "node:test";
 import { rollup } from "rollup";
 import webpack from "webpack";
 import { checkEnv, EnvParityError } from "../dist/index.js";
-import { envParity as astroEnvParity, vitePlugin } from "../dist/astro.js";
+import { envParity as astroEnvParity, vitePlugin, type EnvParityVitePlugin } from "../dist/astro.js";
 import { nextEnvFiles, withEnvParity } from "../dist/next.js";
 import { envParity as rollupEnvParity } from "../dist/rollup.js";
-import { EnvParityPlugin } from "../dist/webpack.js";
+import { EnvParityPlugin, type CompilerLike } from "../dist/webpack.js";
 
 const dirs: string[] = [];
 after(() => {
@@ -133,6 +133,99 @@ describe("watch mode", () => {
     plugin.buildStart.call(ctx);
     assert.equal(warnings.length, 1);
   });
+
+  it("scopes watch state per compiler and deduplicates multiple and reappearing warnings", async () => {
+    const root1 = project({ ".env.example": "ENV_PARITY_TEST_A=\n", ".env": "NOT_A_VALID_LINE\n" });
+    const root2 = project({ ".env.example": "ENV_PARITY_TEST_B=\n" });
+    const shared = new EnvParityPlugin();
+
+    const makeCompiler = (root: string) => {
+      const taps: Record<string, () => Promise<void>> = {};
+      const warnings: unknown[] = [];
+      const compiler: CompilerLike = {
+        context: root,
+        options: { mode: "development" },
+        hooks: {
+          beforeRun: { tapPromise: (_, fn) => void (taps.beforeRun = () => fn(undefined)) },
+          watchRun: { tapPromise: (_, fn) => void (taps.watchRun = () => fn(undefined)) },
+        },
+        getInfrastructureLogger: () => ({ warn: (m) => warnings.push(m) }),
+      };
+      shared.apply(compiler);
+      return { taps, warnings };
+    };
+
+    const c1 = makeCompiler(root1);
+    const c2 = makeCompiler(root2);
+
+    // Both compilers sharing one plugin instance must fail their own first watch compile.
+    await assert.rejects(c1.taps.watchRun!(), /ENV_PARITY_TEST_A/);
+    assert.equal(c1.warnings.length, 1); // parse warning from run 1
+    await assert.rejects(c2.taps.watchRun!(), /ENV_PARITY_TEST_B/);
+
+    // c1 had a parse warning on run 1, so rebuild #1 only emits the mismatch warning; rebuild #2 emits nothing.
+    await c1.taps.watchRun!();
+    assert.equal(c1.warnings.length, 2);
+    await c1.taps.watchRun!();
+    assert.equal(c1.warnings.length, 2);
+
+    // Fix .env, rebuild cleanly, then break it again — the warning must reappear.
+    writeFileSync(join(root1, ".env"), "ENV_PARITY_TEST_A=ok\n");
+    await c1.taps.watchRun!();
+    assert.equal(c1.warnings.length, 2);
+    writeFileSync(join(root1, ".env"), "");
+    await c1.taps.watchRun!();
+    assert.equal(c1.warnings.length, 3);
+  });
+
+  it("rollup deduplicates multiple warnings and warns again after a fix-then-break cycle", () => {
+    const root = project({ ".env.example": "ENV_PARITY_TEST_A=\n", ".env": "NOT_A_VALID_LINE\n" });
+    const plugin = rollupEnvParity({ root });
+    const warnings: string[] = [];
+    const ctx = {
+      meta: { watchMode: true },
+      warn: (m: string) => void warnings.push(m),
+      error: (e: Error | string): never => {
+        throw e;
+      },
+    };
+    assert.throws(() => plugin.buildStart.call(ctx), /ENV_PARITY_TEST_A/);
+    assert.equal(warnings.length, 1); // parse warning from first run
+    plugin.buildStart.call(ctx);
+    assert.equal(warnings.length, 2); // mismatch warning (parse warning deduplicated)
+    plugin.buildStart.call(ctx);
+    assert.equal(warnings.length, 2); // neither warning repeated
+    writeFileSync(join(root, ".env"), "ENV_PARITY_TEST_A=ok\n");
+    plugin.buildStart.call(ctx);
+    writeFileSync(join(root, ".env"), "");
+    plugin.buildStart.call(ctx);
+    assert.equal(warnings.length, 3);
+  });
+});
+
+describe("option validation", () => {
+  it("rejects non-object options and invalid root in rollup and next adapters", () => {
+    for (const bad of [null, ["a"], "str", 123]) {
+      assert.throws(
+        () => rollupEnvParity(bad as never),
+        (e: unknown) => e instanceof EnvParityError && e.code === "INVALID_OPTIONS" && /expects an options object/.test(e.message),
+      );
+      assert.throws(
+        () => withEnvParity({}, bad as never),
+        (e: unknown) => e instanceof EnvParityError && e.code === "INVALID_OPTIONS" && /expects an options object/.test(e.message),
+      );
+    }
+    for (const badRoot of ["", "   ", 123, null]) {
+      assert.throws(
+        () => rollupEnvParity({ root: badRoot as never }),
+        (e: unknown) => e instanceof EnvParityError && e.code === "INVALID_OPTIONS" && /"root" must be a folder path/.test(e.message),
+      );
+      assert.throws(
+        () => withEnvParity({}, { root: badRoot as never }),
+        (e: unknown) => e instanceof EnvParityError && e.code === "INVALID_OPTIONS" && /"root" must be a folder path/.test(e.message),
+      );
+    }
+  });
 });
 
 describe("rollup", () => {
@@ -198,6 +291,36 @@ describe("astro", () => {
     const staging = setup("build").plugin;
     staging.configResolved({ root, mode: "staging", envDir: root });
   });
+
+  it("provides a typed Vite plugin array compatible with Vite/Astro config updaters", () => {
+    type StrictViteResolvedConfig = {
+      root: string;
+      mode: string;
+      envDir: string | false;
+      logger: { warn(msg: string, options?: { timestamp?: boolean }): void };
+    };
+    type StrictVitePlugin = {
+      name: string;
+      configResolved?: (config: StrictViteResolvedConfig) => void | Promise<void>;
+    };
+    type StrictAstroHook = (opts: {
+      command: "dev" | "build" | "preview" | "sync";
+      logger: { warn(message: string): void };
+      updateConfig: (config: { vite?: { plugins?: StrictVitePlugin[] } }) => void;
+    }) => void | Promise<void>;
+
+    const integration = astroEnvParity();
+    const hook: StrictAstroHook = integration.hooks["astro:config:setup"];
+    const plugins: EnvParityVitePlugin[] = [];
+    hook({
+      command: "preview",
+      logger: { warn: () => {} },
+      updateConfig: (c) => {
+        if (c.vite?.plugins) plugins.push(...(c.vite.plugins as EnvParityVitePlugin[]));
+      },
+    });
+    assert.equal(plugins.length, 1);
+  });
 });
 
 describe("next", () => {
@@ -227,5 +350,19 @@ describe("next", () => {
     assert.deepEqual(await config("phase-production-build", { defaultConfig: {} as never }), { phase: "phase-production-build" });
     assert.deepEqual(nextEnvFiles("test"), [".env", ".env.test", ".env.test.local"]);
     for (const k of Object.keys(process.env)) if (k.startsWith("ENV_PARITY_CHECKED_")) delete process.env[k];
+  });
+
+  it("does not set the dedup marker when a check fails so retrying after a fix still checks", async () => {
+    const root = project({ ".env.example": "ENV_PARITY_NEXT_RETRY=\n" });
+    const config = withEnvParity({ ok: true }, { root });
+    try {
+      await assert.rejects(config("phase-production-build", { defaultConfig: {} as never }), /ENV_PARITY_NEXT_RETRY/);
+      assert.equal(process.env.ENV_PARITY_CHECKED_PHASE_PRODUCTION_BUILD, undefined);
+      writeFileSync(join(root, ".env"), "ENV_PARITY_NEXT_RETRY=1\n");
+      assert.deepEqual(await config("phase-production-build", { defaultConfig: {} as never }), { ok: true });
+      assert.equal(process.env.ENV_PARITY_CHECKED_PHASE_PRODUCTION_BUILD, "1");
+    } finally {
+      for (const k of Object.keys(process.env)) if (k.startsWith("ENV_PARITY_CHECKED_")) delete process.env[k];
+    }
   });
 });

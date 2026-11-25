@@ -8,6 +8,7 @@
  * export default { plugins: [new EnvParityPlugin()] };
  */
 import { resolveOptions, runCheck, type EnvParityOptions, type ResolvedOptions } from "@acus9345/env-parity";
+import { createWatchRunner, DOCS_URL } from "./shared.js";
 
 export type { EnvParityOptions } from "@acus9345/env-parity";
 export { EnvParityError } from "@acus9345/env-parity";
@@ -38,34 +39,31 @@ export interface CompilerLike {
  */
 export class EnvParityPlugin {
   readonly #options: ResolvedOptions;
-  #lastWarning = "";
-  #watchStarted = false;
 
   constructor(options: EnvParityOptions = {}) {
-    this.#options = resolveOptions(options, { name: NAME, call: "new EnvParityPlugin", docs: "https://github.com/acus9345/env-parity-plugin#options" });
+    this.#options = resolveOptions(options, { name: NAME, call: "new EnvParityPlugin", docs: DOCS_URL });
   }
 
   apply(compiler: CompilerLike): void {
+    const runWithWatch = createWatchRunner();
     const check = async (watching: boolean): Promise<void> => {
       const mode = compiler.options.mode && compiler.options.mode !== "none" ? compiler.options.mode : "production";
       const logger = compiler.getInfrastructureLogger?.(NAME);
-      const run = !watching ? "build" : this.#watchStarted ? "rebuild" : "dev";
-      if (watching) this.#watchStarted = true;
-      const { error } = runCheck(this.#options, {
-        name: NAME,
-        root: compiler.context,
-        mode,
-        run,
-        hint: (option) => `new EnvParityPlugin({ ${option} })`,
-        warn: (message) => {
-          // Watch mode re-checks on every rebuild; only repeat a warning when it changes.
-          if (watching && message === this.#lastWarning) return;
-          this.#lastWarning = message;
-          if (logger) logger.warn(message);
-          else console.warn(message);
-        },
+      const emit = (message: string): void => {
+        if (logger) logger.warn(message);
+        else console.warn(message);
+      };
+      runWithWatch(watching, emit, (run, warn) => {
+        const { error } = runCheck(this.#options, {
+          name: NAME,
+          root: compiler.context,
+          mode,
+          run,
+          hint: (option) => `new EnvParityPlugin({ ${option} })`,
+          warn,
+        });
+        if (error) throw error;
       });
-      if (error) throw error;
     };
     compiler.hooks.beforeRun.tapPromise(NAME, () => check(false));
     compiler.hooks.watchRun.tapPromise(NAME, () => check(true));

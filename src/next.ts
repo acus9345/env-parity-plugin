@@ -7,7 +7,8 @@
  *
  * export default withEnvParity({ reactStrictMode: true });
  */
-import { resolveOptions, runCheck, type EnvParityOptions, type RunKind } from "@acus9345/env-parity";
+import { runCheck, type EnvParityOptions, type RunKind } from "@acus9345/env-parity";
+import { DOCS_URL, resolveRootOptions } from "./shared.js";
 
 export type { EnvParityOptions } from "@acus9345/env-parity";
 export { EnvParityError } from "@acus9345/env-parity";
@@ -53,14 +54,12 @@ export function withEnvParity<C extends object>(
   nextConfig: NextConfigInput<C> = {} as C,
   options: NextEnvParityOptions = {},
 ): (phase: string, context: { defaultConfig: C }) => Promise<C> {
-  const { root, ...rest } = options;
-  const opts = resolveOptions(rest, { name: NAME, call: "withEnvParity", docs: "https://github.com/acus9345/env-parity-plugin#options" });
+  const { root, opts } = resolveRootOptions(options, { name: NAME, call: "withEnvParity", docs: DOCS_URL });
   return async (phase, context) => {
     const known = PHASES[phase];
     // Next.js loads the config again in worker processes; they inherit this marker, so the check runs once.
     const marker = `ENV_PARITY_CHECKED_${phase.replace(/\W/g, "_").toUpperCase()}`;
     if (known && process.env[marker] !== "1") {
-      process.env[marker] = "1";
       const mode = opts.mode ?? known.mode;
       const { error } = runCheck(opts, {
         name: NAME,
@@ -73,6 +72,7 @@ export function withEnvParity<C extends object>(
         warn: (message) => console.warn(`⚠ ${message}`),
       });
       if (error) throw error;
+      process.env[marker] = "1";
     }
     return typeof nextConfig === "function" ? nextConfig(phase, context) : nextConfig;
   };
