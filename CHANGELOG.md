@@ -1,6 +1,11 @@
-# Changelog
+﻿# Changelog
 
 All notable changes to this project are documented here. This project follows [Semantic Versioning](https://semver.org/).
+
+## [0.3.2] - 2026-11-25
+
+### Fixed
+- Fix per-compiler Webpack watch state, multi-warning deduplication, Rollup/Next option validation and retry-after-failure, and Astro strict hook typing.
 
 ## [0.3.1] - 2026-10-22
 
@@ -15,6 +20,11 @@ All notable changes to this project are documented here. This project follows [S
 
 - `failOn: "start"`, and the `FailOn` and `CheckEnvOptions` types.
 
+## [0.3.2] - 2026-11-25
+
+### Fixed
+- Fix per-compiler Webpack watch state, multi-warning deduplication, Rollup/Next option validation and retry-after-failure, and Astro strict hook typing.
+
 ## [0.2.0] - 2026-10-20
 
 ### Added
@@ -23,6 +33,11 @@ All notable changes to this project are documented here. This project follows [S
 - Next.js: with `scan`, server-only variables read in `"use client"` files fail the build (they are `undefined` in the browser), and dynamic `process.env` access in client files is a warning.
 - `scan: { unused: true }` warns about example variables that no source file reads.
 - `CheckResult` has `undeclared`, `clientOnly` and `unused`; `checkEnv()` takes `framework: "next"`; `findEnvUses()` and `BUILT_IN_VARIABLES` are exported.
+
+## [0.3.2] - 2026-11-25
+
+### Fixed
+- Fix per-compiler Webpack watch state, multi-warning deduplication, Rollup/Next option validation and retry-after-failure, and Astro strict hook typing.
 
 ## [0.1.0] - 2026-10-18
 
